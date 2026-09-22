@@ -1,10 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DBX Plugin Otel">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenTelemetry">
   <defs>
-    <linearGradient id="g" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#6d5dfc"/>
-      <stop offset="1" stop-color="#2cc9a7"/>
+    <linearGradient id="otel-bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4c3df0"/>
+      <stop offset="1" stop-color="#1fb6a6"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="url(#g)"/>
-  <path fill="#fff" d="M20 18h18a10 10 0 0 1 0 20H28v8h-8V18Zm8 8v4h10a2 2 0 1 0 0-4H28Z"/>
+  <rect width="64" height="64" rx="16" fill="url(#otel-bg)"/>
+  <!-- span waterfall: a root span with children at staggered offsets -->
+  <g fill="#ffffff">
+    <rect x="13" y="16" width="38" height="6" rx="3"/>
+    <rect x="19" y="27" width="17" height="6" rx="3" opacity=".85"/>
+    <rect x="28" y="38" width="23" height="6" rx="3" opacity=".72"/>
+    <rect x="19" y="49" width="10" height="6" rx="3" opacity=".6"/>
+  </g>
+  <!-- left rail markers keep the glyph readable at 16px -->
+  <g fill="#ffffff" opacity=".95">
+    <circle cx="13" cy="30" r="2"/>
+    <circle cx="13" cy="52" r="2"/>
+  </g>
 </svg>

@@ -81,7 +81,7 @@ const byText = (document, selector, text) =>
 // ------------------------------------------------------------------ workbench
 
 {
-  const { dom, calls, open } = makeDom("dev.yiqiui.otel.workbench", { connectionId: "c1" });
+  const { dom, calls, open } = makeDom("com.yiqiui.otel.workbench", { connectionId: "c1" });
   open();
   const document = await settle(dom);
   check("workbench renders status", document.body.textContent.includes("OpenTelemetry"), document.body.textContent.slice(0, 80));
@@ -161,7 +161,7 @@ const byText = (document, selector, text) =>
     sql: "SELECT * FROM spans",
     connectionId: "c1",
   };
-  const { dom, open } = makeDom("dev.yiqiui.otel.waterfall", { connectionId: "c1", result });
+  const { dom, open } = makeDom("com.yiqiui.otel.waterfall", { connectionId: "c1", result });
   open();
   const document = await settle(dom);
   check("result-view renders waterfall", document.querySelectorAll(".wf-bar").length === 3, `${document.querySelectorAll(".wf-bar").length} bars`);
@@ -170,7 +170,7 @@ const byText = (document, selector, text) =>
 }
 
 {
-  const { dom, open } = makeDom("dev.yiqiui.otel.waterfall", { connectionId: "c1", result: { columns: ["a", "b"], rows: [[1, 2]], truncated: true } });
+  const { dom, open } = makeDom("com.yiqiui.otel.waterfall", { connectionId: "c1", result: { columns: ["a", "b"], rows: [[1, 2]], truncated: true } });
   open();
   const document = await settle(dom);
   check("result-view warns on truncated snapshot", document.body.textContent.includes("500"), document.body.textContent.slice(0, 160));

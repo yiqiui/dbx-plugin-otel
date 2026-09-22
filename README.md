@@ -1,4 +1,4 @@
-# OpenTelemetry Explorer — DBX 插件
+# OpenTelemetry — DBX 插件
 
 在 DBX 里接收、浏览并分析 OpenTelemetry 遥测数据。
 
@@ -16,14 +16,16 @@
 
 | 依赖 | 说明 |
 | --- | --- |
-| Go 1.22+ | `backend/go.mod` 要求 1.22。若本机是 1.21，`GOTOOLCHAIN=auto` 会自动下载 1.22 工具链，无需手动升级 |
+| Go 1.22+ | `backend/go.mod` 要求 1.22。若本机是 1.21，`GOTOOLCHAIN=auto` 会自动下载所需工具链，无需手动升级 |
 | Node.js 22+ | 跑 `@dbx-app/plugin-cli` 与本地 dev 宿主 |
-| t8y2/dbx 仓库 | Go SDK 目前**没有发布模块 tag**（仓库只有 `plugin-cli-v*`），需要本地 checkout |
 
-Go SDK 有两种解析方式，二选一：
+Go SDK 直接按**伪版本**远程引用：
 
-1. `backend/go.mod` 里的 `replace` 指向本地 dbx 仓库（默认已配置为 `D:/workspace/code/wd/dbx`）；
-2. 打包时设置 `DBX_PLUGIN_SDK_ROOT=<dbx 仓库根目录>`，CLI 会自动 `go mod edit -replace` 到 `$ROOT/plugins/sdk/go/dbx-plugin-sdk`。
+```
+github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk v0.0.0-20260922092522-e1fc28ab861d
+```
+
+Go SDK 目前没有发布 tag（`t8y2/dbx` 只有 `plugin-cli-v*` 与 `v0.6.x`），`@v0.1.0` 这类版本号会报 `unknown revision`；`@main` 解析出的伪版本写进 `go.mod`/`go.sum` 后就是固定提交，因此本地与 CI 都不需要 checkout dbx，也不需要 `DBX_PLUGIN_SDK_ROOT`。
 
 ## 常用命令
 
@@ -41,27 +43,27 @@ node dev/smoke.mjs
 node dev/e2e.mjs
 
 # 浏览器预览工作台 UI（不需要安装 DBX 插件；在项目目录内执行，不带路径参数）
-DBX_PLUGIN_SDK_ROOT="D:/workspace/code/wd/dbx" dbx-plugin dev
+dbx-plugin dev
 
 # 打包 .dbxp
-DBX_PLUGIN_SDK_ROOT="D:/workspace/code/wd/dbx" dbx-plugin package .
+dbx-plugin package .
 
 # 校验包结构（entrypoint 路径、checksum 覆盖率与 SHA-256）
 python dev/verify-package.py
 ```
 
-产物：`dist/dev.yiqiui.otel-0.1.0-windows-x64.dbxp`（未签名审阅候选）+ 同名 `.artifact.json`。
+产物：`dist/com.yiqiui.otel-<version>-<target>.dbxp`（未签名审阅候选）+ 同名 `.artifact.json`。
 
 ### Windows 上的三个坑（脚本里已处理）
 
 1. **`go env` 的全局值会污染构建**。若本机 `go env -w` 写过 `GOOS=linux`（交叉编译到服务器很常见），`go build`/`go test`/`go run` 都会产出或编译成本机跑不了的产物，并在 `runtime/cgo` 报 `unknown type name 'sigset_t'`。**每一处**派生 Go 命令的地方都要显式设置 `GOOS/GOARCH/CGO_ENABLED`——`dev/build.mjs` 与 `dev/e2e.mjs` 里的 `go run` 都踩过这个。
-2. **Go SDK 无发布 tag**：`go mod tidy` 会报 `unknown revision plugins/sdk/go/dbx-plugin-sdk/v0.1.0`。仓库里用相对 `replace` 指向同级的 dbx checkout；打包时设置 `DBX_PLUGIN_SDK_ROOT`，CLI 会在 go.mod 副本上用 `-modfile` 覆盖它，因此 CI 不依赖这个相对布局。
+2. **Go SDK 无发布 tag**：`@v0.1.0` 会报 `unknown revision`，必须用 `@main` 解析出的伪版本（见上）。另外 `.github/workflows` 里模板给的复用工作流 ref `@plugin-sdk-v1` 在 `t8y2/dbx` 中**并不存在**，CI 会直接解析失败，已改成 `@main`。
 3. **`otlptracehttp.WithEndpointURL` 不会补 `/v1/traces`**：直接传 `http://127.0.0.1:4318` 会 POST 到根路径并拿到 404。`examples/checkout-service` 里已按路径是否存在再决定拼接。
 
 ## 安装到 DBX
 
 1. Plugin Center → 设置 → 打开「允许安装未签名插件（开发模式）」；
-2. 本地安装 `dist/dev.yiqiui.otel-0.1.0-windows-x64.dbxp`；
+2. 本地安装 `dist/com.yiqiui.otel-0.1.0-windows-x64.dbxp`；
 3. 新建连接 → 选择 **OpenTelemetry 接收端**，填监听地址与端口（默认 `127.0.0.1:4318`）、保留天数、可选上报令牌；
 4. 连接后打开工作台，点「启动接收端」或「注入演示链路」即可看到数据。
 
@@ -130,12 +132,19 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:54321 go run .   # 端口回退后�
 
 它是 `dev/e2e.mjs` 端到端验证的发送端，也可以直接对着已安装的插件跑，用来在工作台里看真实数据。
 
-## 发布
+## 上架 dbx-store
 
-1. 发布 GitHub Release，仓库内的 `.github/workflows/plugin-release.yml` 会为各目标平台构建未签名候选；
-2. 在 DBX Store 注册后由其自动创建/更新候选 PR，或直接向 **`t8y2/dbx-store:main`** 提交带 release 与 `release-candidates.json` URL 的 PR；
-3. 审核通过后由 DBX Store 用官方仓库密钥签名。
+官方流程是**一个 PR 搞定**（没有单独的 submission issue）：
+
+1. 打 tag 并发布 GitHub Release（例如 `v0.2.0`），仓库内的 `.github/workflows/plugin-release.yml` 会在 5 个 runner 上各构建一个未签名 `.dbxp` + `.artifact.json`，并合并出 `release-candidates.json` 回传到该 Release；
+2. 从 Release 里取每个 target 的 `url` / `sha256` / `size`（就是 `release-candidates.json` 的内容，无需手算）；
+3. 复刻 `t8y2/dbx-store`，在 `candidates/com.yiqiui.otel.json` 写入候选元数据（`schemaVersion: 1`、`id`、`publisher`、`version`、`name`、`description`、`icon`、`tags`、`permissions`、`source` 指向**带 tag 的源码链接**、`homepage`、`license`、`releaseNotes`、`localizations`、`targets`），向 `main` 开 PR 并填写模板；
+4. CI 在校验通过后会保持红色并提示 `open candidate(s) awaiting DBX Store signing`——这是故意的，防止未签名内容被合并；
+5. 维护者在该 PR 上运行受保护的 **Sign plugin PR candidates** 工作流：签名、把最终资产发布到 R2（`https://dl.dbxio.com/plugins/<id>/<version>/...`），并把生成的 `plugins/com.yiqiui.otel.json`、重建的 `catalog/index.json`、以及删除 `candidates/...` 提交回你的 PR 分支；
+6. CI 变绿后由维护者合并。
+
+约束：未签名包的 `manifest.json` 必须与候选元数据的 `id`/`version`/`publisher` 完全一致；URL 必须是 HTTPS 且不能指向 `t8y2/dbx-store` 的 release；已上架或已吊销的版本不能重复提交；**同一版本不允许原地重建**（改了任何字节都要升版本）。`publishers/yiqiui.json` 已存在，再次提交无需重复添加。
 
 插件源码与未签名候选留在本仓库；不要把它们提交到 `t8y2/dbx`，那个仓库只接收插件宿主、SDK、CLI、schema、文档与官方示例的改动。
 
-完整开发指南见 [plugin-development](https://dbxio.com/cn/docs/plugin-development) 与 `plugins/README.md`。
+完整规范见 `t8y2/dbx-store/CONTRIBUTING.md`、[plugin-development](https://dbxio.com/cn/docs/plugin-development) 与 `plugins/README.md`。

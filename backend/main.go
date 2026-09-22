@@ -14,8 +14,8 @@ import (
 	dbxpluginsdk "github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk"
 )
 
-const pluginID = "dev.yiqiui.otel"
-const pluginVersion = "0.1.2"
+const pluginID = "com.yiqiui.otel"
+const pluginVersion = "0.2.0"
 
 type receiverConfig struct {
 	Host          string
@@ -69,10 +69,12 @@ func main() {
 	store.Close()
 }
 
-// dataRoot prefers the host-provided persistent directory; the fallback only
-// applies when the sidecar is run standalone during development.
+// dataRoot reads the host-provided persistent directory straight from the
+// documented DBX_PLUGIN_DATA_DIR contract instead of the SDK helper, so the
+// build does not depend on which SDK revision the packager vendors. The
+// fallback only applies when the sidecar runs standalone during development.
 func dataRoot() (string, error) {
-	if dir := dbxpluginsdk.DataDir(); dir != "" {
+	if dir := os.Getenv("DBX_PLUGIN_DATA_DIR"); dir != "" {
 		resolved := filepath.Join(dir, "otel")
 		if err := os.MkdirAll(resolved, 0o700); err != nil {
 			return "", err

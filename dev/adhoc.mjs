@@ -41,7 +41,7 @@ const step = async (label, fn) => {
   catch (error) { console.log(`FAIL ${label}:`, error.message); }
 };
 
-await call("plugin/initialize", { host: { protocolVersions: [1] }, plugin: { id: "dev.yiqiui.otel", version: "0.1.0" }, permissions: [] });
+await call("plugin/initialize", { host: { protocolVersions: [1] }, plugin: { id: "com.yiqiui.otel", version: "0.2.0" }, permissions: [] });
 await step("otel/status", () => call("otel/status", { connectionId: null }));
 await step("otel/start (as UI clicks it)", () => call("otel/start", { connectionId: null }));
 await step("otel/status after start", () => call("otel/status", { connectionId: null }));

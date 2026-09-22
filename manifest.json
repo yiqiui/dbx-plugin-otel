@@ -1,11 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/t8y2/dbx/plugin-sdk-v1/plugins/manifest.schema.json",
   "manifest_version": 1,
-  "id": "dev.yiqiui.otel",
-  "name": "OpenTelemetry Explorer",
-  "version": "0.1.2",
+  "id": "com.yiqiui.otel",
+  "name": "OpenTelemetry",
+  "version": "0.2.0",
   "publisher": "yiqiui",
-  "description": "Receive OTLP telemetry, browse traces, metrics and logs, and analyze them with SQL through DBX's built-in DuckDB.",
+  "description": "Receive OTLP traces, metrics and logs, then browse span waterfalls and analyze them with SQL through DBX's built-in DuckDB.",
   "icon": "assets/plugin.svg",
   "homepage": "https://github.com/yiqiui/dbx-plugin-otel",
   "source": "https://github.com/yiqiui/dbx-plugin-otel",
@@ -27,11 +27,11 @@
   "contributions": [
     {
       "type": "connection-provider",
-      "id": "dev.yiqiui.otel.receiver",
+      "id": "com.yiqiui.otel.receiver",
       "label": "OpenTelemetry receiver",
       "icon": "assets/plugin.svg",
       "database_type": "otel",
-      "description": "Runs an OTLP/HTTP ingest endpoint inside the plugin sidecar and stores traces, metrics and logs as JSONL plus DuckDB-readable CSV.",
+      "description": "Runs OTLP/HTTP and OTLP/gRPC ingest endpoints inside the plugin sidecar and stores traces, metrics and logs as JSONL plus DuckDB-readable CSV.",
       "fields": [
         {
           "key": "display_name",
@@ -52,7 +52,7 @@
         },
         {
           "key": "listen_port",
-          "label": "Listen port",
+          "label": "HTTP port",
           "type": "number",
           "default": 4318,
           "binding": "config",
@@ -90,19 +90,19 @@
           "description": "Optional. When set, send it as 'Authorization: Bearer <token>' or 'X-OTLP-Token'."
         }
       ],
-      "workbench": "dev.yiqiui.otel.workbench",
+      "workbench": "com.yiqiui.otel.workbench",
       "capabilities": ["test", "connect", "disconnect"]
     },
     {
       "type": "workbench",
-      "id": "dev.yiqiui.otel.workbench",
-      "label": "OTel Explorer",
+      "id": "com.yiqiui.otel.workbench",
+      "label": "OpenTelemetry",
       "description": "Receiver status, trace waterfall, metrics and logs, plus ready-to-run DuckDB SQL over the stored files.",
       "icon": "assets/plugin.svg"
     },
     {
       "type": "result-view",
-      "id": "dev.yiqiui.otel.waterfall",
+      "id": "com.yiqiui.otel.waterfall",
       "label": "Trace waterfall",
       "description": "Renders a query result that contains trace/span columns as a span waterfall.",
       "icon": "assets/plugin.svg"
@@ -110,12 +110,12 @@
   ],
   "localizations": {
     "zh-CN": {
-      "name": "OpenTelemetry 浏览器",
-      "description": "接收 OTLP 遥测数据，浏览链路、指标与日志，并通过 DBX 内置 DuckDB 用 SQL 分析。",
+      "name": "OpenTelemetry 遥测",
+      "description": "接收 OTLP 链路、指标与日志，查看 span 瀑布图，并通过 DBX 内置 DuckDB 用 SQL 分析。",
       "contributions": {
-        "dev.yiqiui.otel.receiver": {
+        "com.yiqiui.otel.receiver": {
           "label": "OpenTelemetry 接收端",
-          "description": "在插件 Sidecar 内运行 OTLP/HTTP 接收端，把链路、指标、日志存为 JSONL 与可供 DuckDB 读取的 CSV。",
+          "description": "在插件 Sidecar 内运行 OTLP/HTTP 与 OTLP/gRPC 接收端，把链路、指标、日志存为 JSONL 与可供 DuckDB 读取的 CSV。",
           "fields": {
             "display_name": { "label": "连接名称" },
             "listen_host": {
@@ -123,7 +123,7 @@
               "description": "本机应用填 127.0.0.1；填 0.0.0.0 会把接收端暴露到局域网。"
             },
             "listen_port": {
-              "label": "监听端口",
+              "label": "HTTP 端口",
               "description": "OTLP/HTTP 默认 4318。端口被占用时会自动改用随机端口，并显示真实端口。"
             },
             "grpc_port": {
@@ -138,11 +138,11 @@
             }
           }
         },
-        "dev.yiqiui.otel.workbench": {
-          "label": "OTel 浏览器",
+        "com.yiqiui.otel.workbench": {
+          "label": "OpenTelemetry 遥测",
           "description": "接收端状态、链路瀑布图、指标与日志，以及可直接执行的 DuckDB 分析 SQL。"
         },
-        "dev.yiqiui.otel.waterfall": {
+        "com.yiqiui.otel.waterfall": {
           "label": "链路瀑布图",
           "description": "把包含 trace/span 字段的查询结果渲染成 span 瀑布图。"
         }

@@ -1,4 +1,4 @@
-module example.com/checkout-service
+module github.com/yiqiui/dbx-plugin-otel/examples/checkout-service
 
 go 1.25.0
 

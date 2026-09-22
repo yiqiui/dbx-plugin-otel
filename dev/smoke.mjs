@@ -90,17 +90,17 @@ function otlpJSON(service) {
 async function main() {
   const handshake = await request("plugin/initialize", {
     host: { dbxVersion: "0.6.13", hostApiVersion: "1.1.0", protocolVersions: [1] },
-    plugin: { id: "dev.yiqiui.otel", version: "0.1.0" },
+    plugin: { id: "com.yiqiui.otel", version: "0.1.0" },
     permissions: ["host.events"],
   });
   check("handshake reports protocol v1", handshake.protocolVersion === 1, JSON.stringify(handshake));
-  check("handshake echoes plugin id", handshake.plugin?.id === "dev.yiqiui.otel", JSON.stringify(handshake));
+  check("handshake echoes plugin id", handshake.plugin?.id === "com.yiqiui.otel", JSON.stringify(handshake));
   check("handshake advertises connections+events",
     handshake.capabilities?.includes("connections") && handshake.capabilities?.includes("events"),
     JSON.stringify(handshake.capabilities));
 
   const lifecycle = {
-    provider: { id: "dev.yiqiui.otel.receiver", databaseType: "otel" },
+    provider: { id: "com.yiqiui.otel.receiver", databaseType: "otel" },
     connection: {
       id: "smoke-connection", db_type: "plugin", name: "smoke",
       external_config: { listen_host: "127.0.0.1", listen_port: 4318, retention_days: 7, autostart: true },

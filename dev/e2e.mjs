@@ -45,9 +45,9 @@ const check = (name, ok, detail) => {
 };
 
 try {
-  await call("plugin/initialize", { host: { protocolVersions: [1] }, plugin: { id: "dev.yiqiui.otel", version: "0.1.0" }, permissions: [] });
+  await call("plugin/initialize", { host: { protocolVersions: [1] }, plugin: { id: "com.yiqiui.otel", version: "0.1.0" }, permissions: [] });
   const connected = await call("connection/connect", {
-    provider: { id: "dev.yiqiui.otel.receiver", databaseType: "otel" },
+    provider: { id: "com.yiqiui.otel.receiver", databaseType: "otel" },
     connection: { id: "e2e", db_type: "plugin", external_config: { listen_host: "127.0.0.1", listen_port: 4318, grpc_port: 4317, retention_days: 7 } },
     runtime: { host: "127.0.0.1", port: 0 },
   });

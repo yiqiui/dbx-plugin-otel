@@ -1,9 +1,9 @@
-module github.com/example/dbx-plugin-otel
+module github.com/yiqiui/dbx-plugin-otel
 
 go 1.25.0
 
 require (
-	github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk v0.0.0
+	github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk v0.0.0-20260922092522-e1fc28ab861d
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
@@ -30,9 +30,3 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 )
-
-// The Go SDK has no published module tag yet (t8y2/dbx only ships plugin-cli-v*
-// tags), so local builds resolve it from a sibling checkout of the DBX repo.
-// `dbx-plugin package` with DBX_PLUGIN_SDK_ROOT set overrides this replace on a
-// copy of go.mod, so CI does not depend on this relative layout.
-replace github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk => ../../dbx/plugins/sdk/go/dbx-plugin-sdk

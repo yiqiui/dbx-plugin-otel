@@ -85,7 +85,7 @@ func main() {
 	if err := provider.ForceFlush(ctx); err != nil {
 		log.Fatalf("flush: %v", err)
 	}
-	fmt.Println("done — open the OTel 浏览器 workbench in DBX and refresh")
+	fmt.Println("done — open the OpenTelemetry workbench in DBX and refresh")
 }
 
 func newExporter(ctx context.Context, endpoint, protocol string) (sdktrace.SpanExporter, error) {
