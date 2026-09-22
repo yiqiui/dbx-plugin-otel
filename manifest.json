@@ -1,0 +1,152 @@
+{
+  "$schema": "https://raw.githubusercontent.com/t8y2/dbx/plugin-sdk-v1/plugins/manifest.schema.json",
+  "manifest_version": 1,
+  "id": "dev.yiqiui.otel",
+  "name": "OpenTelemetry Explorer",
+  "version": "0.1.0",
+  "publisher": "yiqiui",
+  "description": "Receive OTLP telemetry, browse traces, metrics and logs, and analyze them with SQL through DBX's built-in DuckDB.",
+  "icon": "assets/plugin.svg",
+  "homepage": "https://github.com/yiqiui/dbx-plugin-otel",
+  "source": "https://github.com/yiqiui/dbx-plugin-otel",
+  "engines": {
+    "dbx": ">=0.5.68",
+    "host_api": "^1.0"
+  },
+  "permissions": ["host.events"],
+  "entrypoints": {
+    "backend": {
+      "executable": "bin/dbx-plugin-otel",
+      "transport": "stdio-jsonl"
+    },
+    "ui": {
+      "root": "ui",
+      "entry": "ui/index.html"
+    }
+  },
+  "contributions": [
+    {
+      "type": "connection-provider",
+      "id": "dev.yiqiui.otel.receiver",
+      "label": "OpenTelemetry receiver",
+      "icon": "assets/plugin.svg",
+      "database_type": "otel",
+      "description": "Runs an OTLP/HTTP ingest endpoint inside the plugin sidecar and stores traces, metrics and logs as JSONL plus DuckDB-readable CSV.",
+      "fields": [
+        {
+          "key": "display_name",
+          "label": "Connection name",
+          "type": "text",
+          "default": "OpenTelemetry receiver",
+          "binding": "name",
+          "required": true
+        },
+        {
+          "key": "listen_host",
+          "label": "Listen host",
+          "type": "text",
+          "default": "127.0.0.1",
+          "binding": "config",
+          "required": true,
+          "description": "Use 127.0.0.1 for local apps; 0.0.0.0 exposes the endpoint to your network."
+        },
+        {
+          "key": "listen_port",
+          "label": "Listen port",
+          "type": "number",
+          "default": 4318,
+          "binding": "config",
+          "required": true,
+          "description": "OTLP/HTTP default is 4318. If the port is taken, DBX falls back to an ephemeral port and shows the real one."
+        },
+        {
+          "key": "grpc_port",
+          "label": "gRPC port",
+          "type": "number",
+          "default": 4317,
+          "binding": "config",
+          "description": "OTLP/gRPC default is 4317. Set 0 to disable gRPC and keep only the HTTP endpoint."
+        },
+        {
+          "key": "retention_days",
+          "label": "Retention days",
+          "type": "number",
+          "default": 7,
+          "binding": "config",
+          "description": "Data files older than this are removed on connect and on demand."
+        },
+        {
+          "key": "autostart",
+          "label": "Start receiver on connect",
+          "type": "boolean",
+          "default": true,
+          "binding": "config"
+        },
+        {
+          "key": "ingest_token",
+          "label": "Ingest token",
+          "type": "password",
+          "binding": "secret",
+          "description": "Optional. When set, send it as 'Authorization: Bearer <token>' or 'X-OTLP-Token'."
+        }
+      ],
+      "workbench": "dev.yiqiui.otel.workbench",
+      "capabilities": ["test", "connect", "disconnect"]
+    },
+    {
+      "type": "workbench",
+      "id": "dev.yiqiui.otel.workbench",
+      "label": "OTel Explorer",
+      "description": "Receiver status, trace waterfall, metrics and logs, plus ready-to-run DuckDB SQL over the stored files.",
+      "icon": "assets/plugin.svg"
+    },
+    {
+      "type": "result-view",
+      "id": "dev.yiqiui.otel.waterfall",
+      "label": "Trace waterfall",
+      "description": "Renders a query result that contains trace/span columns as a span waterfall.",
+      "icon": "assets/plugin.svg"
+    }
+  ],
+  "localizations": {
+    "zh-CN": {
+      "name": "OpenTelemetry 浏览器",
+      "description": "接收 OTLP 遥测数据，浏览链路、指标与日志，并通过 DBX 内置 DuckDB 用 SQL 分析。",
+      "contributions": {
+        "dev.yiqiui.otel.receiver": {
+          "label": "OpenTelemetry 接收端",
+          "description": "在插件 Sidecar 内运行 OTLP/HTTP 接收端，把链路、指标、日志存为 JSONL 与可供 DuckDB 读取的 CSV。",
+          "fields": {
+            "display_name": { "label": "连接名称" },
+            "listen_host": {
+              "label": "监听地址",
+              "description": "本机应用填 127.0.0.1；填 0.0.0.0 会把接收端暴露到局域网。"
+            },
+            "listen_port": {
+              "label": "监听端口",
+              "description": "OTLP/HTTP 默认 4318。端口被占用时会自动改用随机端口，并显示真实端口。"
+            },
+            "grpc_port": {
+              "label": "gRPC 端口",
+              "description": "OTLP/gRPC 默认 4317。填 0 表示只开 HTTP 接收端，不额外占用端口。"
+            },
+            "retention_days": { "label": "保留天数", "description": "超过该天数的数据文件会在连接时与手动清理时删除。" },
+            "autostart": { "label": "连接时启动接收端" },
+            "ingest_token": {
+              "label": "上报令牌",
+              "description": "可选。设置后需以 'Authorization: Bearer <token>' 或 'X-OTLP-Token' 头发送。"
+            }
+          }
+        },
+        "dev.yiqiui.otel.workbench": {
+          "label": "OTel 浏览器",
+          "description": "接收端状态、链路瀑布图、指标与日志，以及可直接执行的 DuckDB 分析 SQL。"
+        },
+        "dev.yiqiui.otel.waterfall": {
+          "label": "链路瀑布图",
+          "description": "把包含 trace/span 字段的查询结果渲染成 span 瀑布图。"
+        }
+      }
+    }
+  }
+}

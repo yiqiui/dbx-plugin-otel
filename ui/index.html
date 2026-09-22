@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenTelemetry Explorer</title>
+    <style>
+      :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 18px; background: Canvas; color: CanvasText; font-size: 13px; }
+      h1 { margin: 0 0 4px; font-size: 18px; }
+      h2 { margin: 18px 0 8px; font-size: 14px; }
+      .muted { opacity: .66; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 12px 0; }
+      .stat { padding: 10px 12px; border: 1px solid color-mix(in srgb, CanvasText 14%, transparent); border-radius: 10px; }
+      .stat b { display: block; font-size: 18px; margin-top: 2px; }
+      .bar { padding: 10px 12px; border: 1px solid color-mix(in srgb, CanvasText 14%, transparent); border-radius: 10px; margin-bottom: 12px; }
+      .bar.err { border-color: #e5484d; background: color-mix(in srgb, #e5484d 10%, transparent); }
+      .bar.ok { border-color: color-mix(in srgb, #30a46c 60%, transparent); }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      .tabs { display: flex; gap: 4px; border-bottom: 1px solid color-mix(in srgb, CanvasText 14%, transparent); margin: 14px 0 12px; }
+      .tab { padding: 7px 12px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; border-bottom: 2px solid transparent; }
+      .tab[aria-selected="true"] { border-bottom-color: var(--color-accent, #6d5dfc); font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid color-mix(in srgb, CanvasText 10%, transparent); vertical-align: top; }
+      th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .6; }
+      tr.clickable:hover { background: color-mix(in srgb, CanvasText 6%, transparent); cursor: pointer; }
+      .waterfall { position: relative; }
+      .wf-row { display: grid; grid-template-columns: minmax(180px, 320px) 1fr 90px; gap: 8px; align-items: center; padding: 3px 0; }
+      .wf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .wf-track { position: relative; height: 16px; background: color-mix(in srgb, CanvasText 6%, transparent); border-radius: 3px; }
+      .wf-bar { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; background: var(--color-accent, #6d5dfc); min-width: 2px; }
+      .wf-bar.error { background: #e5484d; }
+      .wf-bar.server { background: #3e63d6; }
+      .wf-bar.client, .wf-bar.producer, .wf-bar.consumer { background: #12a594; }
+      .wf-dur { text-align: right; font-variant-numeric: tabular-nums; opacity: .8; }
+      .sql { padding: 10px; border-radius: 8px; background: color-mix(in srgb, CanvasText 7%, transparent); overflow: auto; margin: 0 0 10px; white-space: pre-wrap; word-break: break-all; }
+      .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+      .pill.error { color: #e5484d; border-color: #e5484d; }
+      .pill.ok { color: #30a46c; border-color: #30a46c; }
+      details { margin: 6px 0; }
+      summary { cursor: pointer; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="muted">Loading…</div>
+    <script>
+      (function () {
+        const bridge = window.dbxPlugin;
+        const COPY = {
+          en: {
+            title: "OpenTelemetry Explorer",
+            subtitle: "OTLP/HTTP ingest lives in the plugin sidecar; the sandboxed UI only reads through it.",
+            start: "Start receiver", stop: "Stop receiver", refresh: "Refresh", sample: "Ingest demo trace", purge: "Apply retention",
+            listening: "Listening", stopped: "Stopped", endpoint: "Endpoint", dataDir: "Data dir",
+            fallbackWarn: "Port {requested} was busy, so the receiver bound {endpoint} instead. Point your SDK exporter at the address shown above.",
+            spans: "Spans", metrics: "Metrics", logs: "Logs", traces: "Traces",
+            tabTraces: "Traces", tabMetrics: "Metrics", tabLogs: "Logs", tabAnalyze: "Analyze (DuckDB)",
+            filterService: "service", filterSearch: "trace / root name", errorsOnly: "errors only", minDuration: "min ms",
+            noData: "No telemetry yet. Start the receiver and export from your app, or click “Ingest demo trace”.",
+            traceId: "Trace", root: "Root span", duration: "Duration", count: "Spans", service: "Service", status: "Status",
+            analyzeHint: "Open a DuckDB connection in DBX (file type) and run any of these. CSV is written per day, so globs span history.",
+            truncatedWarn: "This result snapshot is capped at 500 rows. Run the query through DuckDB for full analysis.",
+            waterfallNeeds: "This result set has no span columns. Expected trace_id / span_id / start_unix_nano / end_unix_nano (or the same columns from the plugin's CSV).",
+            copied: "Copied", copy: "Copy", operationFailed: "Operation failed", copyFailed: "Copy blocked by the sandbox — select the SQL manually"
+          },
+          zh: {
+            title: "OpenTelemetry 浏览器",
+            subtitle: "OTLP/HTTP 接收端跑在插件 Sidecar 里，沙箱界面只通过 Sidecar 读取数据。",
+            start: "启动接收端", stop: "停止接收端", refresh: "刷新", sample: "注入演示链路", purge: "按保留期清理",
+            listening: "正在监听", stopped: "已停止", endpoint: "接收地址", dataDir: "数据目录",
+            fallbackWarn: "端口 {requested} 被占用，接收端已改绑到 {endpoint}。请把应用的 OTLP 导出地址指向上面显示的端口。",
+            spans: "Span", metrics: "指标", logs: "日志", traces: "链路",
+            tabTraces: "链路", tabMetrics: "指标", tabLogs: "日志", tabAnalyze: "SQL 分析（DuckDB）",
+            filterService: "服务名", filterSearch: "trace / 根 span 名", errorsOnly: "仅看错误", minDuration: "最小耗时 ms",
+            noData: "暂无遥测数据。启动接收端后让应用上报，或点击“注入演示链路”。",
+            traceId: "链路", root: "根 Span", duration: "总耗时", count: "Span 数", service: "服务", status: "状态",
+            analyzeHint: "在 DBX 里新建一个 DuckDB 文件连接，直接执行下面的语句。CSV 按天分片，glob 可跨历史。",
+            truncatedWarn: "结果快照最多 500 行。需要完整分析请走 DuckDB 查询。",
+            waterfallNeeds: "该结果集不含 span 相关列。需要 trace_id / span_id / start_unix_nano / end_unix_nano 这类列。",
+            copied: "已复制", copy: "复制", operationFailed: "操作失败", copyFailed: "沙箱阻止了剪贴板写入，请手动选中 SQL 复制"
+          }
+        };
+        let copy = COPY.en;
+        const T = (key, vars) => {
+          let text = copy[key] || key;
+          for (const name of Object.keys(vars || {})) text = text.replace("{" + name + "}", vars[name]);
+          return text;
+        };
+        const app = document.getElementById("app");
+        const state = { contributionId: null, connectionId: null, tab: "traces", status: null, payload: null };
+
+        function el(tag, attrs, children) {
+          const node = document.createElement(tag);
+          for (const key of Object.keys(attrs || {})) {
+            if (key === "class") node.className = attrs[key];
+            else if (key === "text") node.textContent = attrs[key];
+            else if (key === "html") node.innerHTML = attrs[key];
+            else if (key.startsWith("on") && typeof attrs[key] === "function") node.addEventListener(key.slice(2).toLowerCase(), attrs[key]);
+            else if (attrs[key] !== null && attrs[key] !== undefined) node.setAttribute(key, attrs[key]);
+          }
+          for (const child of children || []) {
+            if (child === null || child === undefined) continue;
+            node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+          }
+          return node;
+        }
+
+        function call(method, params, timeoutMs) {
+          return bridge.invoke(method, Object.assign({ connectionId: state.connectionId }, params || {}), { timeoutMs: timeoutMs || 15000 });
+        }
+
+        // The workbench iframe is sandboxed without allow-modals, so alert() is
+        // silently dropped by the browser. Errors must surface inside the page.
+        function showError(message) {
+          state.error = String(message || "unknown error");
+          paintError();
+        }
+
+        function clearError() {
+          state.error = null;
+        }
+
+        // The sandbox has no allow-same-origin, so navigator.clipboard is often
+        // unavailable; fall back to a transient textarea and report failure
+        // instead of pretending the copy worked.
+        async function copyText(text) {
+          try {
+            if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(text);
+              return true;
+            }
+          } catch (error) { /* fall through */ }
+          try {
+            const area = el("textarea", { style: "position:fixed;top:-1000px" });
+            area.value = text;
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand("copy");
+            area.remove();
+            return ok;
+          } catch (error) {
+            return false;
+          }
+        }
+
+        function paintError() {
+          const existing = document.getElementById("error-banner");
+          if (existing) existing.remove();
+          if (!state.error) return;
+          const banner = el("div", { id: "error-banner", class: "bar err", text: state.error });
+          app.insertBefore(banner, app.firstChild);
+        }
+
+        function fmtNano(nano) {
+          const value = Number(nano || 0);
+          if (!value) return "-";
+          return new Date(value / 1e6).toLocaleString();
+        }
+
+        function fmtDuration(nanos) {
+          const value = Number(nanos || 0);
+          if (value >= 1e9) return (value / 1e9).toFixed(3) + "s";
+          if (value >= 1e6) return (value / 1e6).toFixed(2) + "ms";
+          if (value >= 1e3) return (value / 1e3).toFixed(2) + "µs";
+          return value + "ns";
+        }
+
+        async function boot() {
+          await bridge.ready;
+          copy = String(bridge.locale || "en").toLowerCase().startsWith("zh") ? COPY.zh : COPY.en;
+          state.connectionId = (bridge.context && bridge.context.connectionId) || null;
+          app.className = "";
+          if (String(state.contributionId || "").indexOf("waterfall") >= 0) {
+            renderResultView();
+            bridge.onContext(() => renderResultView());
+            return;
+          }
+          await renderWorkbench();
+        }
+
+        document.addEventListener("dbx-plugin-init", (event) => {
+          state.contributionId = (event.detail && event.detail.contributionId) || null;
+        });
+
+        // ---------------------------------------------------------------- workbench
+
+        async function renderWorkbench() {
+          app.textContent = "";
+          app.appendChild(el("h1", { text: copy.title }));
+          app.appendChild(el("div", { class: "muted", text: copy.subtitle }));
+          paintError();
+          try {
+            state.status = await call("otel/status", {});
+          } catch (error) {
+            showError((copy.operationFailed || "Operation failed") + ": " + String(error.message || error));
+            return;
+          }
+          app.appendChild(statusCard(state.status));
+          app.appendChild(controlBar());
+          app.appendChild(tabBar());
+          const panel = el("div", { id: "panel" });
+          app.appendChild(panel);
+          await renderTab();
+          bindEvents();
+        }
+
+        function statusCard(status) {
+          const counts = status.counts || {};
+          const card = el("div", { class: "bar " + (status.listening ? "ok" : "") });
+          card.appendChild(el("div", { class: "row" }, [
+            el("span", { class: "pill " + (status.listening ? "ok" : ""), text: status.listening ? T("listening") : T("stopped") }),
+            el("code", { text: status.endpoint || "-" }),
+            el("span", { class: "muted", text: "/v1/traces · /v1/metrics · /v1/logs" }),
+            el("span", { class: "muted", text: status.authRequired ? "token required" : "no auth" })
+          ]));
+          if (status.fallbackUsed) {
+            card.appendChild(el("div", { class: "bar err", style: "margin:10px 0 0", text: T("fallbackWarn", { requested: status.requested, endpoint: status.endpoint }) }));
+          }
+          if (status.grpcListening) {
+            card.appendChild(el("div", { class: "row", style: "margin-top:8px" }, [
+              el("span", { class: "pill ok", text: "gRPC" }),
+              el("code", { text: status.grpcEndpoint || "-" }),
+              status.grpcFallback
+                ? el("span", { class: "muted", text: "(configured " + status.grpcRequested + " was busy)" })
+                : null
+            ]));
+          }
+          card.appendChild(el("div", { class: "grid", style: "margin-bottom:0" }, [
+            stat(T("spans"), counts.spans || 0),
+            stat(T("metrics"), counts.metrics || 0),
+            stat(T("logs"), counts.logs || 0)
+          ]));
+          card.appendChild(el("div", { class: "muted", style: "margin-top:6px" }, [
+            el("span", { text: T("dataDir") + ": " }),
+            el("code", { text: status.dataDir || "-" })
+          ]));
+          return card;
+        }
+
+        function stat(label, value) {
+          return el("div", { class: "stat" }, [el("span", { class: "muted", text: label }), el("b", { text: String(value) })]);
+        }
+
+        function controlBar() {
+          const button = (label, onClick, variant) => el("button", { class: "dbx-btn " + (variant || ""), onClick: onClick, text: label });
+          return el("div", { class: "row" }, [
+            button(copy.start, async () => { await run("otel/start", {}); }, "dbx-btn--primary"),
+            button(copy.stop, async () => { await run("otel/stop", {}); }, "dbx-btn--ghost"),
+            button(copy.sample, async () => { await run("otel/sample", {}); }, "dbx-btn--ghost"),
+            button(copy.purge, async () => { await run("otel/purge", {}); }, "dbx-btn--ghost"),
+            button(copy.refresh, async () => { await renderWorkbench(); }, "dbx-btn--ghost")
+          ]);
+        }
+
+        async function run(method, params) {
+          clearError();
+          try {
+            await call(method, params, 20000);
+          } catch (error) {
+            showError((copy.operationFailed || "Operation failed") + ": " + String(error.message || error));
+          }
+          await renderWorkbench();
+        }
+
+        function tabBar() {
+          const tabs = [["traces", copy.tabTraces], ["metrics", copy.tabMetrics], ["logs", copy.tabLogs], ["analyze", copy.tabAnalyze]];
+          return el("div", { class: "tabs" }, tabs.map(([id, label]) =>
+            el("button", {
+              class: "tab", role: "tab", "aria-selected": state.tab === id ? "true" : "false", text: label,
+              onClick: async () => { state.tab = id; await renderWorkbench(); }
+            })
+          ));
+        }
+
+        async function renderTab() {
+          const panel = document.getElementById("panel");
+          if (!panel) return;
+          panel.textContent = "";
+          if (state.tab === "traces") return renderTraces(panel);
+          if (state.tab === "metrics") return renderMetrics(panel);
+          if (state.tab === "logs") return renderLogs(panel);
+          return renderAnalyze(panel);
+        }
+
+        const filters = { service: "", search: "", errors: false, minMs: "" };
+
+        async function renderTraces(panel) {
+          const serviceInput = el("input", { class: "dbx-input", placeholder: copy.filterService, value: filters.service });
+          const searchInput = el("input", { class: "dbx-input", placeholder: copy.filterSearch, value: filters.search });
+          const minInput = el("input", { class: "dbx-input", placeholder: copy.minDuration, value: filters.minMs, style: "width:110px" });
+          const errorsInput = el("input", { type: "checkbox" });
+          errorsInput.checked = filters.errors;
+          const apply = async () => {
+            filters.service = serviceInput.value.trim();
+            filters.search = searchInput.value.trim();
+            filters.minMs = minInput.value.trim();
+            filters.errors = errorsInput.checked;
+            await renderTab();
+          };
+          panel.appendChild(el("div", { class: "row", style: "margin-bottom:10px" }, [
+            serviceInput, searchInput, minInput,
+            el("label", { class: "row" }, [errorsInput, el("span", { class: "muted", text: copy.errorsOnly })]),
+            el("button", { class: "dbx-btn dbx-btn--primary", text: copy.refresh, onClick: apply })
+          ]));
+          let result;
+          try {
+            result = await call("otel/listTraces", {
+              limit: 60, service: filters.service, search: filters.search, errors: filters.errors,
+              minDurationMs: Number(filters.minMs || 0)
+            });
+          } catch (error) {
+            panel.appendChild(el("div", { class: "bar err", text: String(error.message || error) }));
+            return;
+          }
+          const traces = (result && result.traces) || [];
+          if (!traces.length) {
+            panel.appendChild(el("div", { class: "bar", text: copy.noData }));
+            return;
+          }
+          const table = el("table", {}, [
+            el("thead", {}, el("tr", {}, [copy.traceId, copy.root, copy.service, copy.count, copy.duration, copy.status].map((label) => el("th", { text: label })))),
+            el("tbody", {}, traces.map((row) => el("tr", {
+              class: "clickable",
+              onClick: async () => { await openTrace(row.trace_id); }
+            }, [
+              el("td", {}, el("code", { text: String(row.trace_id).slice(0, 16) + "…" })),
+              el("td", { text: row.root_name || "-" }),
+              el("td", { text: (row.services || [row.service]).filter(Boolean).join(", ") || "-" }),
+              el("td", { text: String(row.span_count) }),
+              el("td", { text: row.duration_readable || fmtDuration(row.duration_ns) }),
+              el("td", {}, el("span", { class: "pill " + (row.error_count ? "error" : "ok"), text: row.error_count ? "error ×" + row.error_count : "ok" }))
+            ])))
+          ]);
+          panel.appendChild(table);
+        }
+
+        async function openTrace(traceID) {
+          let detail;
+          try {
+            detail = await call("otel/getTrace", { traceId: traceID });
+          } catch (error) {
+            showError(String(error.message || error));
+            return;
+          }
+          const panel = document.getElementById("panel");
+          if (!panel) return;
+          panel.textContent = "";
+          panel.appendChild(el("h2", {}, [
+            el("button", { class: "dbx-btn dbx-btn--ghost", text: "← " + copy.tabTraces, onClick: renderTab }),
+            el("span", { text: " " }), el("code", { text: traceID })
+          ]));
+          panel.appendChild(waterfall((detail && detail.spans) || []));
+        }
+
+        async function renderMetrics(panel) {
+          let result;
+          try {
+            result = await call("otel/listMetrics", { limit: 200 });
+          } catch (error) {
+            panel.appendChild(el("div", { class: "bar err", text: String(error.message || error) }));
+            return;
+          }
+          const series = (result && result.series) || [];
+          if (!series.length) {
+            panel.appendChild(el("div", { class: "bar", text: copy.noData }));
+            return;
+          }
+          panel.appendChild(el("table", {}, [
+            el("thead", {}, el("tr", {}, ["metric", "kind", "service", "samples", "latest", "unit", "time"].map((label) => el("th", { text: label })))),
+            el("tbody", {}, series.map((row) => el("tr", {}, [
+              el("td", { text: row.metric_name }),
+              el("td", {}, el("span", { class: "pill", text: row.kind })),
+              el("td", { text: row.service || "-" }),
+              el("td", { text: String(row.samples) }),
+              el("td", { text: row.latest_value === 0 && row.latest_json ? JSON.stringify(row.latest_json).slice(0, 60) : String(row.latest_value) }),
+              el("td", { text: row.unit || "-" }),
+              el("td", { class: "muted", text: row.latest_time || "-" })
+            ])))
+          ]));
+        }
+
+        async function renderLogs(panel) {
+          let result;
+          try {
+            result = await call("otel/listLogs", { limit: 200 });
+          } catch (error) {
+            panel.appendChild(el("div", { class: "bar err", text: String(error.message || error) }));
+            return;
+          }
+          const logs = (result && result.logs) || [];
+          if (!logs.length) {
+            panel.appendChild(el("div", { class: "bar", text: copy.noData }));
+            return;
+          }
+          panel.appendChild(el("table", {}, [
+            el("thead", {}, el("tr", {}, ["time", "level", "service", "body", "trace"].map((label) => el("th", { text: label })))),
+            el("tbody", {}, logs.map((row) => el("tr", {}, [
+              el("td", { class: "muted", text: row.timestamp || "-" }),
+              el("td", {}, el("span", { class: "pill " + (row.severity_number >= 17 ? "error" : ""), text: row.severity_text || String(row.severity_number || "-") })),
+              el("td", { text: row.service || "-" }),
+              el("td", { text: row.body || "-" }),
+              el("td", {}, row.trace_id ? el("code", { text: row.trace_id.slice(0, 16) + "…" }) : el("span", { class: "muted", text: "-" }))
+            ])))
+          ]));
+        }
+
+        async function renderAnalyze(panel) {
+          let result;
+          try {
+            result = await call("otel/analysisSql", {});
+          } catch (error) {
+            panel.appendChild(el("div", { class: "bar err", text: String(error.message || error) }));
+            return;
+          }
+          panel.appendChild(el("div", { class: "bar", text: copy.analyzeHint }));
+          const globs = result.csvGlob || {};
+          panel.appendChild(el("div", {}, Object.keys(globs).map((key) =>
+            el("div", { class: "row", style: "margin-bottom:4px" }, [el("span", { class: "muted", text: key + ": " }), el("code", { text: globs[key] })])
+          )));
+          for (const item of result.queries || []) {
+            panel.appendChild(el("details", {}, [
+              el("summary", { text: item.title }),
+              el("pre", { class: "sql", text: item.sql }),
+              el("button", {
+                class: "dbx-btn dbx-btn--ghost", text: copy.copy,
+                onClick: async (event) => {
+                  const button = event.currentTarget;
+                  const ok = await copyText(item.sql);
+                  button.textContent = ok ? copy.copied : copy.copyFailed;
+                  setTimeout(() => { button.textContent = copy.copy; }, ok ? 1500 : 4000);
+                }
+              })
+            ]));
+          }
+        }
+
+        // ---------------------------------------------------------------- waterfall
+
+        function waterfall(spans) {
+          if (!spans.length) return el("div", { class: "bar", text: copy.noData });
+          const byID = {};
+          spans.forEach((row) => { byID[row.span_id] = row; });
+          let min = Infinity, max = 0;
+          spans.forEach((row) => {
+            min = Math.min(min, Number(row.start_unix_nano || 0));
+            max = Math.max(max, Number(row.end_unix_nano || 0));
+          });
+          if (!isFinite(min)) min = 0;
+          const total = Math.max(1, max - min);
+          const depth = (row) => {
+            let level = 0, parent = byID[row.parent_span_id];
+            while (parent && level < 40) { level += 1; parent = byID[parent.parent_span_id]; }
+            return level;
+          };
+          const ordered = spans.slice().sort((a, b) => Number(a.start_unix_nano) - Number(b.start_unix_nano));
+          const list = el("div", { class: "waterfall" });
+          for (const row of ordered) {
+            const left = ((Number(row.start_unix_nano) - min) / total) * 100;
+            const width = Math.max(0.4, (Number(row.duration_ns || 0) / total) * 100);
+            const kind = String(row.kind || "").toLowerCase();
+            list.appendChild(el("div", { class: "wf-row" }, [
+              el("div", { class: "wf-name", style: "padding-left:" + (depth(row) * 14) + "px", title: row.name, text: row.name || "(unnamed)" }),
+              el("div", { class: "wf-track" }, el("div", {
+                class: "wf-bar " + (String(row.status_code).toLowerCase() === "error" ? "error" : kind),
+                style: "left:" + left.toFixed(2) + "%;width:" + width.toFixed(2) + "%",
+                title: (row.service || "") + " · " + fmtDuration(row.duration_ns)
+              })),
+              el("div", { class: "wf-dur", text: fmtDuration(row.duration_ns) })
+            ]));
+          }
+          const detail = el("div", {}, ordered.map((row) => el("details", {}, [
+            el("summary", {}, [
+              el("code", { text: (row.service || "?") + " " + (row.name || "") }),
+              el("span", { class: "muted", text: "  " + fmtDuration(row.duration_ns) })
+            ]),
+            el("pre", { class: "sql", text: JSON.stringify({
+              span_id: row.span_id, parent_span_id: row.parent_span_id, kind: row.kind,
+              status: row.status_code, status_message: row.status_message,
+              start: fmtNano(row.start_unix_nano), end: fmtNano(row.end_unix_nano),
+              attributes: row.attributes, resource_attributes: row.resource_attributes,
+              events: row.events, links: row.links
+            }, null, 2) })
+          ])));
+          return el("div", {}, [list, el("h2", { text: "Spans" }), detail]);
+        }
+
+        // ------------------------------------------------------------ result-view
+
+        function normalizeResultRows(context) {
+          const result = (context && context.result) || {};
+          const columns = (result.columns || []).map((column) => (typeof column === "string" ? column : column && (column.name || column.key)));
+          const rows = result.rows || [];
+          const index = {};
+          columns.forEach((name, position) => { index[String(name).toLowerCase()] = position; });
+          const pick = (row, ...names) => {
+            for (const name of names) {
+              const position = index[name];
+              if (position !== undefined && row[position] !== undefined && row[position] !== null) return row[position];
+            }
+            return undefined;
+          };
+          const mapped = rows.map((row) => ({
+            span_id: String(pick(row, "span_id", "spanId", "id") || ""),
+            parent_span_id: String(pick(row, "parent_span_id", "parentSpanId") || ""),
+            name: String(pick(row, "name", "span_name", "operation", "root_name") || "(unnamed)"),
+            kind: String(pick(row, "kind") || ""),
+            service: String(pick(row, "service", "service_name") || ""),
+            status_code: String(pick(row, "status_code", "status") || ""),
+            start_unix_nano: Number(pick(row, "start_unix_nano", "start_unix_nanosecond", "start") || 0),
+            end_unix_nano: Number(pick(row, "end_unix_nano", "end_unix_nanosecond", "end") || 0),
+            duration_ns: Number(pick(row, "duration_ns", "duration") || 0),
+            attributes: {}, resource_attributes: {}, events: [], links: [], status_message: ""
+          }));
+          const usable = mapped.filter((row) => row.span_id && row.start_unix_nano);
+          return { spans: usable.length ? usable : mapped.filter((row) => row.start_unix_nano), truncated: !!result.truncated, usable: usable.length > 0 };
+        }
+
+        function renderResultView() {
+          app.className = "";
+          app.textContent = "";
+          const parsed = normalizeResultRows(bridge.context);
+          app.appendChild(el("h1", { text: copy.title }));
+          if (parsed.truncated) {
+            app.appendChild(el("div", { class: "bar err", text: copy.truncatedWarn }));
+          }
+          if (!parsed.usable) {
+            app.appendChild(el("div", { class: "bar", text: copy.waterfallNeeds }));
+            return;
+          }
+          app.appendChild(waterfall(parsed.spans));
+        }
+
+        // ---------------------------------------------------------------- events
+
+        function bindEvents() {
+          if (!bridge.onEvent) return;
+          try {
+            bridge.onEvent((event) => {
+              const payload = event && (event.params || event.detail && event.detail.params);
+              const method = (event && event.method) || (event && event.detail && event.detail.method);
+              if (method !== "otel/ingested" || !payload) return;
+              const ticker = document.getElementById("live-ticker");
+              if (ticker) {
+                const counts = payload.counts || {};
+                ticker.textContent = "live: +" + (payload.count || 0) + " " + (payload.signal || "") +
+                  "  ·  spans " + (counts.spans || 0) + " · metrics " + (counts.metrics || 0) + " · logs " + (counts.logs || 0);
+              }
+            });
+          } catch (error) {
+            /* host without event relay */
+          }
+          const bar = app.querySelector(".bar");
+          if (bar) bar.appendChild(el("div", { id: "live-ticker", class: "muted", style: "margin-top:6px", text: "live: waiting" }));
+        }
+
+        boot().catch((error) => {
+          app.className = "bar err";
+          app.textContent = String(error && error.message ? error.message : error);
+        });
+      })();
+    </script>
+  </body>
+</html>
