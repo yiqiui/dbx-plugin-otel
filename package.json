@@ -1,7 +1,7 @@
 {
   "name": "dbx-plugin-otel",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Scripts for building, testing and packaging the DBX OpenTelemetry plugin.",
   "scripts": {

@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "dev.yiqiui.otel",
   "name": "OpenTelemetry Explorer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "yiqiui",
   "description": "Receive OTLP telemetry, browse traces, metrics and logs, and analyze them with SQL through DBX's built-in DuckDB.",
   "icon": "assets/plugin.svg",

@@ -15,7 +15,7 @@ import (
 )
 
 const pluginID = "dev.yiqiui.otel"
-const pluginVersion = "0.1.1"
+const pluginVersion = "0.1.2"
 
 type receiverConfig struct {
 	Host          string

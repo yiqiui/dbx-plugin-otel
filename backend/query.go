@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -259,22 +261,26 @@ func (store *Store) IngestSample() int {
 	base := time.Now().Add(-3 * time.Second).UnixNano()
 	service := "demo-checkout"
 	resource := map[string]any{"service.name": service, "deployment.environment": "local"}
+	// Fresh ids per call: a fixed trace id would make two injections collapse
+	// into one bogus 8-span trace.
+	traceID := randomHex(16)
+	rootID, cartID, dbID, kafkaID := randomHex(8), randomHex(8), randomHex(8), randomHex(8)
 	rows := []SpanRow{
 		{
-			TraceID: "d1000000000000000000000000000001", SpanID: "1000000000000001", ParentSpanID: "",
+			TraceID: traceID, SpanID: rootID, ParentSpanID: "",
 			Name: "POST /checkout", Kind: "server", Service: service,
 			StartUnixNano: base, EndUnixNano: base + int64(820*time.Millisecond),
 			StatusCode: "unset", Attributes: map[string]any{"http.method": "POST", "http.route": "/checkout", "http.status_code": int64(200)},
 			ResourceAttributes: resource,
 		},
 		{
-			TraceID: "d1000000000000000000000000000001", SpanID: "1000000000000002", ParentSpanID: "1000000000000001",
+			TraceID: traceID, SpanID: cartID, ParentSpanID: rootID,
 			Name: "cart.validate", Kind: "internal", Service: service,
 			StartUnixNano: base + int64(20*time.Millisecond), EndUnixNano: base + int64(95*time.Millisecond),
 			StatusCode: "unset", Attributes: map[string]any{"cart.items": int64(3)}, ResourceAttributes: resource,
 		},
 		{
-			TraceID: "d1000000000000000000000000000001", SpanID: "1000000000000003", ParentSpanID: "1000000000000001",
+			TraceID: traceID, SpanID: dbID, ParentSpanID: rootID,
 			Name: "SELECT payments", Kind: "client", Service: service,
 			StartUnixNano: base + int64(120*time.Millisecond), EndUnixNano: base + int64(640*time.Millisecond),
 			StatusCode: "error", StatusMessage: "deadlock detected",
@@ -282,7 +288,7 @@ func (store *Store) IngestSample() int {
 			ResourceAttributes: resource,
 		},
 		{
-			TraceID: "d1000000000000000000000000000001", SpanID: "1000000000000004", ParentSpanID: "1000000000000001",
+			TraceID: traceID, SpanID: kafkaID, ParentSpanID: rootID,
 			Name: "kafka.publish order.created", Kind: "producer", Service: service,
 			StartUnixNano: base + int64(660*time.Millisecond), EndUnixNano: base + int64(700*time.Millisecond),
 			StatusCode:         "unset",
@@ -298,7 +304,7 @@ func (store *Store) IngestSample() int {
 			TimestampUnixNano: base + int64(640*time.Millisecond), SeverityText: "ERROR", SeverityNumber: 17,
 			Service: service, Body: "payment query failed: deadlock detected",
 			Attributes: map[string]any{"exception.type": "org.postgresql.util.PSQLException"},
-			TraceID:    "d1000000000000000000000000000001", SpanID: "1000000000000003",
+			TraceID:    traceID, SpanID: dbID,
 			ResourceAttributes: resource,
 		},
 	}
@@ -332,4 +338,18 @@ func nanoToRFC3339(nanos int64) string {
 		return ""
 	}
 	return time.Unix(0, nanos).Local().Format(time.RFC3339Nano)
+}
+
+// randomHex returns a W3C-sized identifier (32 chars for trace ids, 16 for
+// span ids). Falling back to a timestamp keeps demos working on hosts without
+// a working crypto RNG.
+func randomHex(bytesLength int) string {
+	buffer := make([]byte, bytesLength)
+	if _, err := rand.Read(buffer); err != nil {
+		stamp := time.Now().UnixNano()
+		for index := range buffer {
+			buffer[index] = byte(stamp >> (8 * (index % 8)))
+		}
+	}
+	return hex.EncodeToString(buffer)
 }

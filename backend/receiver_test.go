@@ -244,6 +244,35 @@ func TestReceiverRejectsGarbageBody(t *testing.T) {
 	}
 }
 
+// Repeated injections must stay separate traces; fixed demo ids used to merge
+// them into one bogus 8-span trace.
+func TestSampleInjectionsStaySeparateTraces(t *testing.T) {
+	store := newTestStore(t)
+	for attempt := 0; attempt < 2; attempt++ {
+		if count := store.IngestSample(); count != 4 {
+			t.Fatalf("sample spans = %d", count)
+		}
+	}
+	traces, err := store.ListTraces(traceFilter{Limit: 10, Service: "demo-checkout"})
+	if err != nil {
+		t.Fatalf("list traces: %v", err)
+	}
+	if len(traces) != 2 {
+		t.Fatalf("expected 2 distinct traces, got %d", len(traces))
+	}
+	if traces[0]["trace_id"] == traces[1]["trace_id"] {
+		t.Fatalf("trace ids collided: %v", traces[0]["trace_id"])
+	}
+	for _, row := range traces {
+		if row["span_count"] != 4 {
+			t.Fatalf("each demo trace should own 4 spans, got %v", row["span_count"])
+		}
+		if row["root_name"] != "POST /checkout" {
+			t.Fatalf("root name = %v", row["root_name"])
+		}
+	}
+}
+
 func TestSampleAndRetention(t *testing.T) {
 	store := newTestStore(t)
 	if count := store.IngestSample(); count != 4 {
