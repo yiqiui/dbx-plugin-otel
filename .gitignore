@@ -7,3 +7,4 @@
 
 /examples/**/checkout-service.exe
 /otel-data/
+node_modules/

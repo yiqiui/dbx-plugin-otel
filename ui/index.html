@@ -101,9 +101,13 @@
             else if (key.startsWith("on") && typeof attrs[key] === "function") node.addEventListener(key.slice(2).toLowerCase(), attrs[key]);
             else if (attrs[key] !== null && attrs[key] !== undefined) node.setAttribute(key, attrs[key]);
           }
-          for (const child of children || []) {
-            if (child === null || child === undefined) continue;
-            node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+          // Callers pass one node, an array, or an array-like map result.
+          const list = children === null || children === undefined
+            ? []
+            : Array.isArray(children) ? children : (typeof children.length === "number" && typeof children !== "string" ? Array.from(children) : [children]);
+          for (const child of list) {
+            if (child === null || child === undefined || child === false) continue;
+            node.appendChild(typeof child === "string" || typeof child === "number" ? document.createTextNode(String(child)) : child);
           }
           return node;
         }
