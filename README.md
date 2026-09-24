@@ -63,7 +63,7 @@ python dev/verify-package.py
 ## 安装到 DBX
 
 1. Plugin Center → 设置 → 打开「允许安装未签名插件（开发模式）」；
-2. 本地安装 `dist/com.yiqiui.otel-0.1.0-windows-x64.dbxp`；
+2. 本地安装 `dist/com.yiqiui.otel-0.2.1-windows-x64.dbxp`；
 3. 新建连接 → 选择 **OpenTelemetry 接收端**，填监听地址与端口（默认 `127.0.0.1:4318`）、保留天数、可选上报令牌；
 4. 连接后打开工作台，点「启动接收端」或「注入演示链路」即可看到数据。
 

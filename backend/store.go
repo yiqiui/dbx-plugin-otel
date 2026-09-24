@@ -110,9 +110,57 @@ func NewStore(root string) (*Store, error) {
 	store := &Store{
 		root:    root,
 		writers: map[string]*dayWriter{},
-		counts:  map[string]int64{"spans": 0, "metrics": 0, "logs": 0},
+		counts:  countStoredRecords(root),
 	}
 	return store, nil
+}
+
+// countStoredRecords recounts persisted records per signal from the JSONL
+// files. The in-memory counters die with the sidecar process, so without this
+// a restart shows "0 spans / 0 metrics / 0 logs" next to a data dir full of
+// files — the status card must describe the disk, not this process.
+func countStoredRecords(root string) map[string]int64 {
+	counts := map[string]int64{"spans": 0, "metrics": 0, "logs": 0}
+	for signal := range counts {
+		counts[signal] = countStoredRecordsSignal(root, signal)
+	}
+	return counts
+}
+
+// countStoredRecordsSignal recounts one signal's JSONL records on disk.
+func countStoredRecordsSignal(root, signal string) int64 {
+	dir := filepath.Join(root, "jsonl", signal)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".jsonl") {
+			total += countNonEmptyLines(filepath.Join(dir, entry.Name()))
+		}
+	}
+	return total
+}
+
+// countNonEmptyLines counts JSONL records without materialising them; telemetry
+// lines can be far larger than bufio's default 4 KiB, so the scanner buffer is
+// raised to cover whole resource-heavy batches.
+func countNonEmptyLines(path string) int64 {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), 32*1024*1024)
+	var lines int64
+	for scanner.Scan() {
+		if len(scanner.Bytes()) > 0 {
+			lines++
+		}
+	}
+	return lines
 }
 
 func (store *Store) Root() string { return store.root }
@@ -322,6 +370,7 @@ func (store *Store) Purge(retentionDays int) (int, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	removed := 0
+	purgedSignals := map[string]bool{}
 	for _, signal := range []string{"spans", "metrics", "logs"} {
 		for _, extension := range []string{".csv", ".jsonl"} {
 			dir := filepath.Join(store.root, "jsonl", signal)
@@ -339,18 +388,25 @@ func (store *Store) Purge(retentionDays int) (int, error) {
 					continue
 				}
 				path := filepath.Join(dir, name)
-				// Close any live writer for this day before unlinking it.
-				for key, writer := range store.writers {
-					if strings.HasPrefix(key, signal+"/") {
-						writer.close()
-						delete(store.writers, key)
-					}
+				// Close the live writer for this day before unlinking it.
+				if writer, ok := store.writers[signal+"/"+day]; ok {
+					writer.close()
+					delete(store.writers, signal+"/"+day)
 				}
 				if err := os.Remove(path); err == nil {
 					removed++
+					if extension == ".jsonl" {
+						purgedSignals[signal] = true
+					}
 				}
 			}
 		}
+	}
+	// The counters must keep matching what is on disk, including files the
+	// process never counted (e.g. written by a previous sidecar run), so
+	// affected signals are recounted instead of decremented by guesswork.
+	for signal := range purgedSignals {
+		store.counts[signal] = countStoredRecordsSignal(store.root, signal)
 	}
 	return removed, nil
 }
